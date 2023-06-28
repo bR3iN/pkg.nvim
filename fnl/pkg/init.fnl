@@ -1,5 +1,5 @@
 (local {: scan-dir
-        : spawn
+        : spawn!
         : nmap!
         : empty?
         : dir-exists?
@@ -77,11 +77,11 @@
       (tset pending-cbs cb nil))))
 
 (fn rm-and-report! [path]
-  (spawn [:rm :-r path]
-         (fn [code]
-           (if (= code 0)
-               (print :Removed path)
-               (print "Failed to remove" path)))))
+  (spawn! :rm {:args [:-r path]}
+          (fn [code]
+            (if (= code 0)
+                (print :Removed path)
+                (print "Failed to remove" path)))))
 
 (fn gen-helptags! [path]
   (let [doc-path (.. path :/doc)]
@@ -91,19 +91,18 @@
 ;; Fetch plugin and trigger callbacks that are waiting on it
 (fn fetch-pkg! [pkg-name path]
   (let [url (pkg-name->url pkg-name)]
-    (spawn [:git :clone url path]
-           (fn [code]
-             (if (= code 0)
-                 (do
-                   (print (.. "Installed " pkg-name))
-                   (tset pkg-states pkg-name pkg-state.downloaded)
-                   (gen-helptags! path)
-                   (dispatch-ready-cbs!))
-                 (do
-                   (print (.. "Failed to install " pkg-name))
-                   (tset pkg-states pkg-name nil)
-                   (rm-cbs-waiting-on! pkg-name))
-                 {:env [:GIT_TERMINAL_PROMPT=0]})))))
+    (spawn! :git {:args [:clone url path] :env [:GIT_TERMINAL_PROMPT=0]}
+            (fn [code]
+              (if (= code 0)
+                  (do
+                    (print (.. "Installed " pkg-name))
+                    (tset pkg-states pkg-name pkg-state.downloaded)
+                    (gen-helptags! path)
+                    (dispatch-ready-cbs!))
+                  (do
+                    (print (.. "Failed to install " pkg-name))
+                    (tset pkg-states pkg-name nil)
+                    (rm-cbs-waiting-on! pkg-name)))))))
 
 (fn add! [pkg-names ?setup]
   (let [pkg-names (if (table? pkg-names)
@@ -151,15 +150,23 @@
     (vim.cmd :messages)))
 
 (fn update! []
-  (scan-dir pkg-dir (fn [fname ftype]
-                      (let [path (.. pkg-dir "/" fname)]
-                        (if (and (= ftype :directory) (git-repo? path))
-                            (spawn [:git :pull]
-                                   (fn [code]
-                                     (if (= code 0)
-                                         (gen-helptags! path)
-                                         (vim.cmd.packloadall)))
-                                   {:cwd path}))))))
+  (scan-dir pkg-dir
+            (fn [fname ftype]
+              (let [path (.. pkg-dir "/" fname)]
+                (if (and (= ftype :directory) (git-repo? path))
+                    (spawn! :git {:args [:pull] :cwd path}
+                            (fn [code]
+                              (if (= code 0)
+                                  (gen-helptags! path)
+                                  (vim.cmd.packloadall)))))))))
+
+(fn checkout [pkg-name branch-or-tag]
+  (let [path (pkg-name->path pkg-name)]
+    (spawn! :git {:args [:checkout branch-or-tag] :cwd path}
+            (fn [code]
+              (if (= code 0)
+                  (print "Successfully checked out" branch-or-tag)
+                  (print "Failed to check out" branch-or-tag))))))
 
 (fn init! []
   ;; Reset internal package list
@@ -171,4 +178,4 @@
 (nmap! :<Plug>PkgUpdate #(update!))
 (nmap! :<Plug>PkgList #(list!))
 
-{: add! :init init! :clean clean!}
+{: add! :init init! :clean clean! : checkout}

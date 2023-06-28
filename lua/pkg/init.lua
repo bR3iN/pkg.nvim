@@ -1,6 +1,6 @@
 local _local_1_ = require("pkg.utils")
 local scan_dir = _local_1_["scan-dir"]
-local spawn = _local_1_["spawn"]
+local spawn_21 = _local_1_["spawn!"]
 local nmap_21 = _local_1_["nmap!"]
 local empty_3f = _local_1_["empty?"]
 local dir_exists_3f = _local_1_["dir-exists?"]
@@ -124,7 +124,7 @@ local function rm_and_report_21(path)
       return print("Failed to remove", path)
     end
   end
-  return spawn({"rm", "-r", path}, _15_)
+  return spawn_21("rm", {args = {"-r", path}}, _15_)
 end
 local function gen_helptags_21(path)
   local doc_path = (path .. "/doc")
@@ -143,20 +143,12 @@ local function fetch_pkg_21(pkg_name, path)
       gen_helptags_21(path)
       return dispatch_ready_cbs_21()
     else
-      local _19_
-      do
-        print(("Failed to install " .. pkg_name))
-        do end (pkg_states)[pkg_name] = nil
-        _19_ = rm_cbs_waiting_on_21(pkg_name)
-      end
-      if _19_ then
-        return {env = {"GIT_TERMINAL_PROMPT=0"}}
-      else
-        return nil
-      end
+      print(("Failed to install " .. pkg_name))
+      do end (pkg_states)[pkg_name] = nil
+      return rm_cbs_waiting_on_21(pkg_name)
     end
   end
-  return spawn({"git", "clone", url, path}, _18_)
+  return spawn_21("git", {args = {"clone", url, path}, env = {"GIT_TERMINAL_PROMPT=0"}}, _18_)
 end
 local function add_21(pkg_names, _3fsetup)
   local pkg_names0
@@ -166,16 +158,16 @@ local function add_21(pkg_names, _3fsetup)
     pkg_names0 = {pkg_names}
   end
   local setup
-  local function _22_()
+  local function _21_()
   end
-  setup = (_3fsetup or _22_)
+  setup = (_3fsetup or _21_)
   local blocked = false
   for _, pkg_name in ipairs(pkg_names0) do
-    local _23_ = pkg_states[pkg_name]
-    if (_23_ == pkg_state.downloaded) then
-    elseif (_23_ == pkg_state.downloading) then
+    local _22_ = pkg_states[pkg_name]
+    if (_22_ == pkg_state.downloaded) then
+    elseif (_22_ == pkg_state.downloading) then
       blocked = true
-    elseif (_23_ == nil) then
+    elseif (_22_ == nil) then
       local path = pkg_name__3epath(pkg_name)
       if dir_exists_3f(path) then
         pkg_states[pkg_name] = pkg_state.downloaded
@@ -189,11 +181,11 @@ local function add_21(pkg_names, _3fsetup)
   end
   if blocked then
     local cb
-    local function _26_()
+    local function _25_()
       vim.cmd.packloadall()
       return setup()
     end
-    cb = _26_
+    cb = _25_
     pending_cbs[cb] = pkg_names0
     return nil
   else
@@ -203,18 +195,18 @@ end
 local function clean_21()
   local valid_dir_names = map(pkg_name__3edir_name, keys(pkg_states))
   local rm_3f
-  local function _28_(_241)
+  local function _27_(_241)
     return not contains_3f(_241, valid_dir_names)
   end
-  rm_3f = _28_
-  local function _29_(filename, filetype)
+  rm_3f = _27_
+  local function _28_(filename, filetype)
     if ((filetype == "directory") and rm_3f(filename)) then
       return rm_and_report_21((pkg_dir .. "/" .. filename))
     else
       return nil
     end
   end
-  return scan_dir(pkg_dir, _29_)
+  return scan_dir(pkg_dir, _28_)
 end
 local function list_21()
   local pkg_names = keys(pkg_states)
@@ -224,34 +216,45 @@ local function list_21()
   return vim.cmd("messages")
 end
 local function update_21()
-  local function _31_(fname, ftype)
+  local function _30_(fname, ftype)
     local path = (pkg_dir .. "/" .. fname)
     if ((ftype == "directory") and git_repo_3f(path)) then
-      local function _32_(code)
+      local function _31_(code)
         if (code == 0) then
           return gen_helptags_21(path)
         else
           return vim.cmd.packloadall()
         end
       end
-      return spawn({"git", "pull"}, _32_, {cwd = path})
+      return spawn_21("git", {args = {"pull"}, cwd = path}, _31_)
     else
       return nil
     end
   end
-  return scan_dir(pkg_dir, _31_)
+  return scan_dir(pkg_dir, _30_)
+end
+local function checkout(pkg_name, branch_or_tag)
+  local path = pkg_name__3epath(pkg_name)
+  local function _34_(code)
+    if (code == 0) then
+      return print("Successfully checked out", branch_or_tag)
+    else
+      return print("Failed to check out", branch_or_tag)
+    end
+  end
+  return spawn_21("git", {args = {"checkout", branch_or_tag}, cwd = path}, _34_)
 end
 local function init_21()
   pkg_states = {}
   pending_cbs = {}
   return vim.fn.mkdir(pkg_dir, "p")
 end
-local function _35_()
+local function _36_()
   return update_21()
 end
-nmap_21("<Plug>PkgUpdate", _35_)
-local function _36_()
+nmap_21("<Plug>PkgUpdate", _36_)
+local function _37_()
   return list_21()
 end
-nmap_21("<Plug>PkgList", _36_)
-return {["add!"] = add_21, init = init_21, clean = clean_21}
+nmap_21("<Plug>PkgList", _37_)
+return {["add!"] = add_21, init = init_21, clean = clean_21, checkout = checkout}

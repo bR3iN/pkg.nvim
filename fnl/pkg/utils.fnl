@@ -38,11 +38,8 @@
 (fn parse-cmd [[file & args]]
   (values file args))
 
-(fn M.spawn [cmd cb ?opts]
-  (let [(file args) (parse-cmd cmd)
-        opts (doto (or ?opts {})
-               (tset :args args))]
-    (uv.spawn file opts (vim.schedule_wrap cb))))
+(fn M.spawn! [cmd opts cb]
+  (uv.spawn cmd opts (vim.schedule_wrap cb)))
 
 ;; Hide callbacks and error handling in low-level luvit calls.
 ;; `args` are the output paramters of the call minus the error

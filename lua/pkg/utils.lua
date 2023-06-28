@@ -43,26 +43,19 @@ local function parse_cmd(_1_)
   local args = (function (t, k, e) local mt = getmetatable(t) if 'table' == type(mt) and mt.__fennelrest then return mt.__fennelrest(t, k) elseif e then local rest = {} for k, v in pairs(t) do if not e[k] then rest[k] = v end end return rest else return {(table.unpack or unpack)(t, k)} end end)(_arg_2_, 2)
   return file, args
 end
-M.spawn = function(cmd, cb, _3fopts)
-  local file, args = parse_cmd(cmd)
-  local opts
-  do
-    local _3_ = (_3fopts or {})
-    do end (_3_)["args"] = args
-    opts = _3_
-  end
-  return uv.spawn(file, opts, vim.schedule_wrap(cb))
+M["spawn!"] = function(cmd, opts, cb)
+  return uv.spawn(cmd, opts, vim.schedule_wrap(cb))
 end
 M["scan-dir"] = function(path, cb)
   local wrapped_cb
-  local function _4_(entry)
+  local function _3_(entry)
     return cb(entry.name, entry.type)
   end
-  wrapped_cb = vim.schedule_wrap(_4_)
-  local function _5_(err_3_auto, dir)
+  wrapped_cb = vim.schedule_wrap(_3_)
+  local function _4_(err_3_auto, dir)
     assert(not err_4_auto, err_4_auto)
     local function iter()
-      local function _6_(err_3_auto0, entries)
+      local function _5_(err_3_auto0, entries)
         assert(not err_4_auto, err_4_auto)
         if entries then
           vim.tbl_map(wrapped_cb, entries)
@@ -71,10 +64,10 @@ M["scan-dir"] = function(path, cb)
           return dir:closedir()
         end
       end
-      return dir:readdir(_6_)
+      return dir:readdir(_5_)
     end
     return iter()
   end
-  return uv.fs_opendir(path, _5_)
+  return uv.fs_opendir(path, _4_)
 end
 return M
