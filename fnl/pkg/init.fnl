@@ -37,8 +37,8 @@
 
 (fn pkg-name->dir-name [pkg-name]
   (let [pkg-name (if (url? pkg-name)
-                     (rm-scheme pkg-name)
-                     pkg-name)]
+                   (rm-scheme pkg-name)
+                   pkg-name)]
     (match (-> pkg-name
                (string.gsub "/" "_")
                (string.gsub "%." "_"))
@@ -46,8 +46,8 @@
 
 (fn pkg-name->url [pkg-name]
   (if (url? pkg-name)
-      pkg-name
-      (.. "https://github.com/" pkg-name)))
+    pkg-name
+    (.. "https://github.com/" pkg-name)))
 
 (fn dir->path [dir-name]
   (.. pkg-dir "/" dir-name))
@@ -57,22 +57,22 @@
       (pkg-name->dir-name)
       (dir->path)))
 
-(fn ready-cbs [pkg-states pending-cbs]
+(fn get-ready-cbs []
   (let [finished? (fn [pkg-name]
                     (= (. pkg-states pkg-name) pkg-state.downloaded))]
     (icollect [cb pkg-names (pairs pending-cbs)]
-      (if (all (map finished? pkg-names))
-          cb))))
+              (if (all (map finished? pkg-names))
+                cb))))
 
 (fn dispatch-ready-cbs! []
-  (each [_ cb (ipairs (ready-cbs pkg-states pending-cbs))]
+  (each [_ cb (ipairs (get-ready-cbs))]
     (tset pending-cbs cb nil)
     (cb)))
 
 (fn rm-cbs-waiting-on! [pkg-name]
   (let [orphaned-cbs (icollect [cb pkgs-waiting (pairs pending-cbs)]
-                       (if (contains? pkg-name pkgs-waiting)
-                           cb))]
+                               (if (contains? pkg-name pkgs-waiting)
+                                 cb))]
     (each [_ cb (ipairs orphaned-cbs)]
       (tset pending-cbs cb nil))))
 
@@ -80,13 +80,13 @@
   (spawn! :rm {:args [:-r path]}
           (fn [code]
             (if (= code 0)
-                (print :Removed path)
-                (print "Failed to remove" path)))))
+              (print :Removed path)
+              (print "Failed to remove" path)))))
 
 (fn gen-helptags! [path]
   (let [doc-path (.. path :/doc)]
     (if (dir-exists? doc-path)
-        (vim.cmd (.. ":helptags " path :/doc)))))
+      (vim.cmd.helptags {:args [doc-path]}))))
 
 ;; Fetch plugin and trigger callbacks that are waiting on it
 (fn fetch-pkg! [pkg-name path]
@@ -94,43 +94,41 @@
     (spawn! :git {:args [:clone url path] :env [:GIT_TERMINAL_PROMPT=0]}
             (fn [code]
               (if (= code 0)
-                  (do
-                    (print (.. "Installed " pkg-name))
-                    (tset pkg-states pkg-name pkg-state.downloaded)
-                    (gen-helptags! path)
-                    (dispatch-ready-cbs!))
-                  (do
-                    (print (.. "Failed to install " pkg-name))
-                    (tset pkg-states pkg-name nil)
-                    (rm-cbs-waiting-on! pkg-name)))))))
+                (do
+                  (print (.. "Installed " pkg-name))
+                  (tset pkg-states pkg-name pkg-state.downloaded)
+                  (vim.cmd.packloadall {:bang true})
+                  (gen-helptags! path)
+                  (dispatch-ready-cbs!))
+                (do
+                  (print (.. "Failed to install " pkg-name))
+                  (tset pkg-states pkg-name nil)
+                  (rm-cbs-waiting-on! pkg-name)))))))
 
 (fn add! [pkg-names ?setup]
   (let [pkg-names (if (table? pkg-names)
-                      pkg-names
-                      [pkg-names])
+                    pkg-names
+                    [pkg-names])
         setup (or ?setup (fn []))]
     (var blocked false)
     (each [_ pkg-name (ipairs pkg-names)]
       (match (. pkg-states pkg-name)
         (pkg-state.downloaded) nil
         (pkg-state.downloading) (set blocked true)
+        ;; Plugin is not yet known, check if it already exists
+        ;; and download it if not
         nil (let [path (pkg-name->path pkg-name)]
-              ;; Plugin is not yet known, check if it already exists
-              ;; and download it if not
               (if (dir-exists? path)
-                  (tset pkg-states pkg-name pkg-state.downloaded)
-                  (do
-                    (set blocked true)
-                    (tset pkg-states pkg-name pkg-state.downloading)
-                    (fetch-pkg! pkg-name path))))))
+                (tset pkg-states pkg-name pkg-state.downloaded)
+                (do
+                  (set blocked true)
+                  (tset pkg-states pkg-name pkg-state.downloading)
+                  (fetch-pkg! pkg-name path))))))
     (if blocked
-        ;; Some plugins are currently downloading, setup register callback
-        (let [cb (fn []
-                   (vim.cmd.packloadall)
-                   (setup))]
-          (tset pending-cbs cb pkg-names))
-        ;; Plugins are already installed, setup synchronously
-        (setup))))
+      ;; Some plugins are currently downloading, setup register callback
+      (tset pending-cbs setup pkg-names)
+      ;; Plugins are already installed, setup synchronously
+      (setup))))
 
 (fn clean! []
   (let [valid-dir-names (->> pkg-states
@@ -140,7 +138,7 @@
     (scan-dir pkg-dir
               (fn [filename filetype]
                 (if (and (= filetype :directory) (rm? filename))
-                    (rm-and-report! (.. pkg-dir "/" filename)))))))
+                  (rm-and-report! (.. pkg-dir "/" filename)))))))
 
 (fn list! []
   (let [pkg-names (keys pkg-states)
@@ -154,19 +152,19 @@
             (fn [fname ftype]
               (let [path (.. pkg-dir "/" fname)]
                 (if (and (= ftype :directory) (git-repo? path))
-                    (spawn! :git {:args [:pull] :cwd path}
-                            (fn [code]
-                              (if (= code 0)
-                                  (gen-helptags! path)
-                                  (vim.cmd.packloadall)))))))))
+                  (spawn! :git {:args [:pull] :cwd path}
+                          (fn [code]
+                            (if (= code 0)
+                              (vim.cmd.packloadall {:bang true})
+                              (gen-helptags! path)))))))))
 
 (fn checkout [pkg-name branch-or-tag]
   (let [path (pkg-name->path pkg-name)]
     (spawn! :git {:args [:checkout branch-or-tag] :cwd path}
             (fn [code]
               (if (= code 0)
-                  (print "Successfully checked out" branch-or-tag)
-                  (print "Failed to check out" branch-or-tag))))))
+                (print "Successfully checked out" branch-or-tag)
+                (print "Failed to check out" branch-or-tag))))))
 
 (fn init! []
   ;; Reset internal package list

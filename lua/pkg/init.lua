@@ -61,15 +61,15 @@ end
 local function pkg_name__3epath(pkg_name)
   return dir__3epath(pkg_name__3edir_name(pkg_name))
 end
-local function ready_cbs(pkg_states0, pending_cbs0)
+local function get_ready_cbs()
   local finished_3f
   local function _10_(pkg_name)
-    return ((pkg_states0)[pkg_name] == pkg_state.downloaded)
+    return (pkg_states[pkg_name] == pkg_state.downloaded)
   end
   finished_3f = _10_
   local tbl_17_auto = {}
   local i_18_auto = #tbl_17_auto
-  for cb, pkg_names in pairs(pending_cbs0) do
+  for cb, pkg_names in pairs(pending_cbs) do
     local val_19_auto
     if all(map(finished_3f, pkg_names)) then
       val_19_auto = cb
@@ -85,7 +85,7 @@ local function ready_cbs(pkg_states0, pending_cbs0)
   return tbl_17_auto
 end
 local function dispatch_ready_cbs_21()
-  for _, cb in ipairs(ready_cbs(pkg_states, pending_cbs)) do
+  for _, cb in ipairs(get_ready_cbs()) do
     pending_cbs[cb] = nil
     cb()
   end
@@ -129,7 +129,7 @@ end
 local function gen_helptags_21(path)
   local doc_path = (path .. "/doc")
   if dir_exists_3f(doc_path) then
-    return vim.cmd((":helptags " .. path .. "/doc"))
+    return vim.cmd.helptags({args = {doc_path}})
   else
     return nil
   end
@@ -140,6 +140,7 @@ local function fetch_pkg_21(pkg_name, path)
     if (code == 0) then
       print(("Installed " .. pkg_name))
       do end (pkg_states)[pkg_name] = pkg_state.downloaded
+      vim.cmd.packloadall({bang = true})
       gen_helptags_21(path)
       return dispatch_ready_cbs_21()
     else
@@ -180,13 +181,7 @@ local function add_21(pkg_names, _3fsetup)
     end
   end
   if blocked then
-    local cb
-    local function _25_()
-      vim.cmd.packloadall()
-      return setup()
-    end
-    cb = _25_
-    pending_cbs[cb] = pkg_names0
+    pending_cbs[setup] = pkg_names0
     return nil
   else
     return setup()
@@ -195,18 +190,18 @@ end
 local function clean_21()
   local valid_dir_names = map(pkg_name__3edir_name, keys(pkg_states))
   local rm_3f
-  local function _27_(_241)
+  local function _26_(_241)
     return not contains_3f(_241, valid_dir_names)
   end
-  rm_3f = _27_
-  local function _28_(filename, filetype)
+  rm_3f = _26_
+  local function _27_(filename, filetype)
     if ((filetype == "directory") and rm_3f(filename)) then
       return rm_and_report_21((pkg_dir .. "/" .. filename))
     else
       return nil
     end
   end
-  return scan_dir(pkg_dir, _28_)
+  return scan_dir(pkg_dir, _27_)
 end
 local function list_21()
   local pkg_names = keys(pkg_states)
@@ -216,45 +211,45 @@ local function list_21()
   return vim.cmd("messages")
 end
 local function update_21()
-  local function _30_(fname, ftype)
+  local function _29_(fname, ftype)
     local path = (pkg_dir .. "/" .. fname)
     if ((ftype == "directory") and git_repo_3f(path)) then
-      local function _31_(code)
+      local function _30_(code)
         if (code == 0) then
-          return gen_helptags_21(path)
+          return vim.cmd.packloadall({bang = true})
         else
-          return vim.cmd.packloadall()
+          return gen_helptags_21(path)
         end
       end
-      return spawn_21("git", {args = {"pull"}, cwd = path}, _31_)
+      return spawn_21("git", {args = {"pull"}, cwd = path}, _30_)
     else
       return nil
     end
   end
-  return scan_dir(pkg_dir, _30_)
+  return scan_dir(pkg_dir, _29_)
 end
 local function checkout(pkg_name, branch_or_tag)
   local path = pkg_name__3epath(pkg_name)
-  local function _34_(code)
+  local function _33_(code)
     if (code == 0) then
       return print("Successfully checked out", branch_or_tag)
     else
       return print("Failed to check out", branch_or_tag)
     end
   end
-  return spawn_21("git", {args = {"checkout", branch_or_tag}, cwd = path}, _34_)
+  return spawn_21("git", {args = {"checkout", branch_or_tag}, cwd = path}, _33_)
 end
 local function init_21()
   pkg_states = {}
   pending_cbs = {}
   return vim.fn.mkdir(pkg_dir, "p")
 end
-local function _36_()
+local function _35_()
   return update_21()
 end
-nmap_21("<Plug>PkgUpdate", _36_)
-local function _37_()
+nmap_21("<Plug>PkgUpdate", _35_)
+local function _36_()
   return list_21()
 end
-nmap_21("<Plug>PkgList", _37_)
+nmap_21("<Plug>PkgList", _36_)
 return {["add!"] = add_21, init = init_21, clean = clean_21, checkout = checkout}
