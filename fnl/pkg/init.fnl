@@ -10,7 +10,7 @@
         : contains?
         : table?} (require :pkg.utils))
 
-(local {:tbl_keys keys :tbl_map map :tbl_filter filter} vim)
+(local {:tbl_keys keys :tbl_values vals :tbl_map map :tbl_filter filter} vim)
 (local sort! table.sort)
 
 ;; Package directory
@@ -58,11 +58,15 @@
       (dir->path)))
 
 (fn get-ready-cbs []
-  (let [finished? (fn [pkg-name]
-                    (= (. pkg-states pkg-name) pkg-state.downloaded))]
-    (icollect [cb pkg-names (pairs pending-cbs)]
-              (if (all (map finished? pkg-names))
-                cb))))
+  (let [everything-downloaded (->> pkg-states
+                                   (vals)
+                                   (map #(= $1 pkg-state.downloaded))
+                                   (all))]
+    ; TODO: Make nicer
+    (if everything-downloaded
+      (do
+        (vim.cmd.packloadall {:bang true})
+        (map #($1) (keys pending-cbs))))))
 
 (fn dispatch-ready-cbs! []
   (each [_ cb (ipairs (get-ready-cbs))]
@@ -97,7 +101,6 @@
                 (do
                   (print (.. "Installed " pkg-name))
                   (tset pkg-states pkg-name pkg-state.downloaded)
-                  (vim.cmd.packloadall {:bang true})
                   (gen-helptags! path)
                   (dispatch-ready-cbs!))
                 (do

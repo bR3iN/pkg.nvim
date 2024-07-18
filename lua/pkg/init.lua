@@ -12,6 +12,7 @@ local contains_3f = _local_1_["contains?"]
 local table_3f = _local_1_["table?"]
 local _local_2_ = vim
 local keys = _local_2_["tbl_keys"]
+local vals = _local_2_["tbl_values"]
 local map = _local_2_["tbl_map"]
 local filter = _local_2_["tbl_filter"]
 local sort_21 = table.sort
@@ -62,27 +63,20 @@ local function pkg_name__3epath(pkg_name)
   return dir__3epath(pkg_name__3edir_name(pkg_name))
 end
 local function get_ready_cbs()
-  local finished_3f
-  local function _10_(pkg_name)
-    return (pkg_states[pkg_name] == pkg_state.downloaded)
+  local everything_downloaded
+  local function _10_(_241)
+    return (_241 == pkg_state.downloaded)
   end
-  finished_3f = _10_
-  local tbl_17_auto = {}
-  local i_18_auto = #tbl_17_auto
-  for cb, pkg_names in pairs(pending_cbs) do
-    local val_19_auto
-    if all(map(finished_3f, pkg_names)) then
-      val_19_auto = cb
-    else
-      val_19_auto = nil
+  everything_downloaded = all(map(_10_, vals(pkg_states)))
+  if everything_downloaded then
+    vim.cmd.packloadall({bang = true})
+    local function _11_(_241)
+      return _241()
     end
-    if (nil ~= val_19_auto) then
-      i_18_auto = (i_18_auto + 1)
-      do end (tbl_17_auto)[i_18_auto] = val_19_auto
-    else
-    end
+    return map(_11_, keys(pending_cbs))
+  else
+    return nil
   end
-  return tbl_17_auto
 end
 local function dispatch_ready_cbs_21()
   for _, cb in ipairs(get_ready_cbs()) do
@@ -140,7 +134,6 @@ local function fetch_pkg_21(pkg_name, path)
     if (code == 0) then
       print(("Installed " .. pkg_name))
       do end (pkg_states)[pkg_name] = pkg_state.downloaded
-      vim.cmd.packloadall({bang = true})
       gen_helptags_21(path)
       return dispatch_ready_cbs_21()
     else
